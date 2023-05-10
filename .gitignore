@@ -1,0 +1,4 @@
+.vscode
+example/.serverless
+node_modules
+.DS_Store

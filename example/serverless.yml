@@ -1,0 +1,29 @@
+service: sls-py-req-test
+
+provider:
+  name: aws
+  runtime: python3.7
+
+plugins:
+  - ..
+custom:
+  pythonRequirements:
+    shared:
+      common_utils:
+        source: ../shared
+        functions:
+          - hello
+
+    exclude:
+      - pyarrow/src
+
+package:
+  individually: true
+
+functions:
+  hello:
+    handler: handler.hello
+    zip: true
+  goodbye:
+    handler: handler.goodbye
+    zip: true
