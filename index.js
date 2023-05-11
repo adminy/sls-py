@@ -54,21 +54,27 @@ const packDepsInZip = async (target, depsFiles) => {
   return depsZipPath
 }
 
-const getSharedRequirements = async (options, functionName, target, exclude, sourceCode, zip, progress, log) => {
+const getSharedRequirements = async (options, functionName, target, exclude, sourceCode, zip, fns, progress, log) => {
   progress?.update('Copying shared modules')
   let sharedReqs = ''
   for (const [shared, { functions, source }] of Object.entries(options.shared || {})) {
-    if (functions.includes(functionName) && await exists(source)) {
+    const sharedFunctions = functions || fns
+    if (sharedFunctions.includes(functionName) && await exists(source)) {
       !await exists(path.join(target, shared)) ? await fs.mkdir(path.join(target, shared)) : log.warning('Dejavu for ', shared)
       for (const file of await fs.readdir(source)) {
-        if (isInExclude(file, exclude)) { progress?.update('Skipping', file); continue }
+        if (isInExclude(file, exclude)) {
+          progress?.update('Skipping', file)
+          continue
+        }
         progress?.update('Copying shared file: ' + file)
         const sharedPath = path.join(target, shared, file)
         fs.cp(path.join(source, file), sharedPath, { recursive: true, force: true })
         sourceCode.add(sharedPath)
         zip.addFile(sharedPath)
       }
-      sharedReqs += ` -r ${shared}/requirements.txt`
+      if (await exists(path.join(target, shared, 'requirements.txt'))) {
+        sharedReqs += ` -r ${shared}/requirements.txt`
+      }
     }
   }
   return sharedReqs
@@ -90,7 +96,7 @@ const copySources = async (source, target, exclude, zip, progress) => {
   return sourceCode
 }
 
-const packageFunction = async (slsFns, name, exclude, slsPath, options, serverless, progress, log) => {
+const packageFunction = async (slsFns, fns, name, exclude, slsPath, options, serverless, progress, log) => {
   const fn = slsFns[name]  
   Object.assign(fn, { package: {}, module: fn.module || '.' })
 
@@ -102,7 +108,7 @@ const packageFunction = async (slsFns, name, exclude, slsPath, options, serverle
   !await exists(target) && await fs.mkdir(target, { recursive: true })
   const source = path.join(slsPath, '..', fn.module)
   const sourceCode = await copySources(source, target, exclude, zip, injectProgress)
-  const sharedReqs = await getSharedRequirements(options, name, target, exclude, sourceCode, zip, injectProgress, log)
+  const sharedReqs = await getSharedRequirements(options, name, target, exclude, sourceCode, zip, fns, injectProgress, log)
   const cmd = options.cmd || `pip install -r requirements.txt ${sharedReqs} -t . ${options.pipArgs.trim()}`
   log.success('Running', cmd)
   injectProgress?.update('Installing Requirements')
@@ -147,7 +153,7 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
     .filter(name => isFunction(slsFns[name], service))
   stopDuplicateModules(slsFns, functions, log)
   await Promise.all(functions.map(name => 
-    packageFunction(slsFns, name, exclude, slsPath, options, serverless, progress, log)
+    packageFunction(slsFns, functions, name, exclude, slsPath, options, serverless, progress, log)
   ))
 }
 

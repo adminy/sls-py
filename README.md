@@ -13,6 +13,7 @@ custom:
     shared:
       common_utils:
         source: ../shared
+        # if no functions specified, it will apply it to all
         functions:
           - hello
     exclude:
@@ -31,6 +32,10 @@ functions:
 
 > filter using the `exclude` options, don't use [Packaging patterns](https://www.serverless.com/framework/docs/providers/aws/guide/packaging)
 
+>In handler.py, **shared** code can be imported like this:
+```py
+from common_utils import shared_resource
+```
 
 ## Future Features Coming Soon ™️
 ---
