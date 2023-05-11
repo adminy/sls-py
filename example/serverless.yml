@@ -20,5 +20,6 @@ custom:
 
 functions:
   hello:
+    module: .
     handler: handler.hello
     zip: true

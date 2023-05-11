@@ -62,7 +62,7 @@ const getSharedRequirements = async (options, functionName, target, exclude, sou
       !await exists(path.join(target, shared)) ? await fs.mkdir(path.join(target, shared)) : log.warning('Dejavu for ', shared)
       for (const file of await fs.readdir(source)) {
         if (isInExclude(file, exclude)) { progress?.update('Skipping', file); continue }
-        progress?.update('Copying shared file', file)
+        progress?.update('Copying shared file: ' + file)
         const sharedPath = path.join(target, shared, file)
         fs.cp(path.join(source, file), sharedPath, { recursive: true, force: true })
         sourceCode.add(sharedPath)
@@ -90,25 +90,22 @@ const copySources = async (source, target, exclude, zip, progress) => {
   return sourceCode
 }
 
-const packageFunction = async (slsFns, name, cachedModules, exclude, slsPath, options, serverless, progress, log) => {
+const packageFunction = async (slsFns, name, exclude, slsPath, options, serverless, progress, log) => {
   const fn = slsFns[name]  
-  Object.assign(fn, { package: {}, module: fn.module || '' })
+  Object.assign(fn, { package: {}, module: fn.module || '.' })
 
-  if (cachedModules[fn.module]) throw log.error(
-    `Module "${fn.module}" already used by function: "${cachedModules[fn.module]}",\n`,
-    'Please consider using "shared" option instead.'
-  )
   const injectProgress = progress.get('python-inject-requirements-' + name)
   const zip = new zl.Zip({ followSymlinks: true })
   serverless.zips[fn.module] = zip
 
   const target = path.join(slsPath, 'functions', fn.module)
   !await exists(target) && await fs.mkdir(target, { recursive: true })
-  const source = path.join(process.cwd(), fn.module) // should this be slsPath?
+  const source = path.join(slsPath, '..', fn.module)
   const sourceCode = await copySources(source, target, exclude, zip, injectProgress)
   const sharedReqs = await getSharedRequirements(options, name, target, exclude, sourceCode, zip, injectProgress, log)
   const cmd = options.cmd || `pip install -r requirements.txt ${sharedReqs} -t . ${options.pipArgs.trim()}`
   log.success('Running', cmd)
+  injectProgress?.update('Installing Requirements')
   await exe(cmd, { cwd: target, env: process.env })
 
   const depsFiles = await getCleanDependencies(target, sourceCode, exclude, injectProgress)
@@ -116,29 +113,42 @@ const packageFunction = async (slsFns, name, cachedModules, exclude, slsPath, op
   delete fn.zip
   for (const dep of deps) zip.addFile(dep)
 
-  const newArtifact = path.join('.serverless', `${(fn.module ? fn.module + '-' : '') + fn.name}.zip`)
+  const newArtifact = path.join('.serverless', `${(fn.module === '.' ? '' : fn.module + '-') + fn.name}.zip`)
   await zip.archive(newArtifact)
   delete serverless.zips[fn.module]
   fn.package.artifact = newArtifact
-  cachedModules[fn.module] = name
   injectProgress?.remove()
   log.success('Successfully packaged', name)
 }
 
+const stopDuplicateModules = (slsFns, fns, log) => {
+  const cachedModules = {}
+  for (const name of fns) {
+    const fnPath = slsFns[name].module
+    if (cachedModules[fnPath]) throw log.error(
+      `Module "${fnPath}" already used by function: "${cachedModules[fnPath]}",
+      cannot use the same module in function: "${name}" also\n`,
+      'Please consider using "shared" option instead.'
+    )
+    cachedModules[fnPath] = name
+  }
+}
+
+const isFunction = (fn, service) =>
+  (fn.runtime || service.provider.runtime).match(/^python.*/) && !fn.image
+
 const beforePackage = async ({ serverless, log, progress, slsPath, options }) => {
+  serverless.zips = {}
   const service = serverless.service
   const slsFns = service?.functions || {}
   const exclude = (options.exclude || []).concat(options.excludeDefaults ? [] : excludeDefaults)
-  const cachedModules = []
-  serverless.zips = {}
-
   const inputOptions = serverless.processedInput.options
-  const functions = inputOptions.function ? [inputOptions.function] : Object.keys(slsFns)
-
-  await Promise.all(
-    functions.filter(name => (slsFns[name].runtime || service.provider.runtime).match(/^python.*/) && !slsFns[name].image)
-      .map(name => packageFunction(slsFns, name, cachedModules, exclude, slsPath, options, serverless, progress, log))
-  )
+  const functions = (inputOptions.function ? [inputOptions.function] : Object.keys(slsFns))
+    .filter(name => isFunction(slsFns[name], service))
+  stopDuplicateModules(slsFns, functions, log)
+  await Promise.all(functions.map(name => 
+    packageFunction(slsFns, name, exclude, slsPath, options, serverless, progress, log)
+  ))
 }
 
 const afterPackage = async ({ serverless, log }) => {
@@ -156,9 +166,8 @@ module.exports = class {
     const options = Object.assign({
         excludeDefaults: false,
         // pythonBin: process.platform === 'win32' ? 'python.exe' : service.provider.runtime || 'python',
-        pipArgs: '',
-        useDownloadCache: true,
-      },
+        pipArgs: ''
+    },
       (serverless.service.custom?.pythonRequirements) || {}
     )
     Object.assign(this, {serverless, options, log, progress, writeText, slsPath: path.join(serverless.config.servicePath, '.serverless')})
