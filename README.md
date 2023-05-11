@@ -1,5 +1,5 @@
 # sls-py-pkg
-```yml
+```yaml
 plugins:
   - sls-py-pkg
 custom:

@@ -119,7 +119,7 @@ const packageFunction = async (slsFns, fns, name, exclude, slsPath, options, ser
   delete fn.zip
   for (const dep of deps) zip.addFile(dep)
 
-  const newArtifact = path.join('.serverless', `${(fn.module === '.' ? '' : fn.module + '-') + fn.name}.zip`)
+  const newArtifact = path.join('.serverless', `${(fn.module === '.' ? '' : fn.module + '-') + name}.zip`)
   await zip.archive(newArtifact)
   delete serverless.zips[fn.module]
   fn.package.artifact = newArtifact
@@ -143,7 +143,7 @@ const stopDuplicateModules = (slsFns, fns, log) => {
 const isFunction = (fn, service) =>
   (fn.runtime || service.provider.runtime).match(/^python.*/) && !fn.image
 
-const beforePackage = async ({ serverless, log, progress, slsPath, options }) => {
+const beforePackage = ({ serverless, log, progress, slsPath, options }) => {
   serverless.zips = {}
   const service = serverless.service
   const slsFns = service?.functions || {}
@@ -152,16 +152,17 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
   const functions = (inputOptions.function ? [inputOptions.function] : Object.keys(slsFns))
     .filter(name => isFunction(slsFns[name], service))
   stopDuplicateModules(slsFns, functions, log)
-  await Promise.all(functions.map(name => 
+  
+  return Promise.all(functions.map(name => 
     packageFunction(slsFns, functions, name, exclude, slsPath, options, serverless, progress, log)
-  ))
+  )).catch(e => log.error(e))
 }
 
 const afterPackage = async ({ serverless, log }) => {
-  const zips = Object.values(serverless.zips)
+  const zips = Object.values(serverless.zips || {})
   if (zips.length) {
     zips.forEach(zip => zip.cancel())
-    log.error('Failed to package everything ...', 'cancelled')
+    log.error('Failed to package everything ...', 'cancelled packaging functions')
   } else log.success('Packaged all functions')
   delete serverless.zips
 }
@@ -194,7 +195,7 @@ module.exports = class {
   }
   handleExit(signals) {
     for (const signal of signals) {
-      process.on(signal, () => this.afterPackage(this))
+      process.on(signal, () => process.exit(0, afterPackage(this)))
     }
   }
 }
