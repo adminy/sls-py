@@ -30,7 +30,7 @@ functions:
 
 > Duplicate modules are not supported, for good practices
 
-> filter using the `exclude` options, don't use [Packaging patterns](https://www.serverless.com/framework/docs/providers/aws/guide/packaging)
+> filter using the `exclude` options, don't use ~~[Packaging patterns](https://www.serverless.com/framework/docs/providers/aws/guide/packaging)~~
 
 >In handler.py, **shared** code can be imported like this:
 ```py
