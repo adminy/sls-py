@@ -8,22 +8,17 @@ plugins:
   - ..
 custom:
   pythonRequirements:
+    pipArgs: >
+      --index-url=https://pypi.org/simple
     shared:
       common_utils:
         source: ../shared
         functions:
           - hello
-
     exclude:
       - pyarrow/src
-
-package:
-  individually: true
 
 functions:
   hello:
     handler: handler.hello
-    zip: true
-  goodbye:
-    handler: handler.goodbye
     zip: true

@@ -22,6 +22,9 @@
     "serverless.com"
   ],
   "main": "index.js",
+  "scripts": {
+    "test": "cd example && sls package"
+  },
   "devDependencies": {
     "serverless": "^3.30.1"
   },
