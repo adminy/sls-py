@@ -1,3 +1,22 @@
+# -i https://artifactory.renre.com/artifactory/api/pypi/pypi/simple/
+# --index-url https://artifactory.renre.com/artifactory/api/pypi/pypi/simple/
+# --extra-index-url https://artifactory.renre.com/artifactory/api/pypi/pypi/simple/
+# -c constraints.txt
+# --constraint constraints.txt
+# -r requirements_dev.txt
+# --requirement requirements_dev.txt
+# --trusted-host artifactory.renre.com
+
+# This is a comment, to show how #-prefixed lines are ignored.
+# It is possible to specify requirements as plain names.
 flask
 hug
 boto3
+pytest
+pytest-cov
+beautifulsoup4
+
+# The syntax supported here is the same as that of requirement specifiers.
+docopt == 0.6.1
+requests [security] >= 2.8.1, == 2.8.* ; python_version < "3.12"
+urllib3 @ https://github.com/urllib3/urllib3/archive/refs/tags/1.26.8.zip

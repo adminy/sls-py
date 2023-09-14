@@ -37,11 +37,11 @@ functions:
 from common_utils import shared_resource
 ```
 
-## Future Features Coming Soon ™️
+## Future Features Coming Soon ™️ (maybe)
 ---
-- [ ] custom schema validation module via `input_types` & `output_types`
-- [ ] support openapi lambda type via `openapi: true`, false by default, as it creates an extra lambda resource
+- [ ] [zip-imports](https://docs.python.org/3/library/zipimport.html)
 - [ ] zip deeper deps filtering for pyc and pyo files
+
 ## Requirements
 ---
 - [x] python & pip installed

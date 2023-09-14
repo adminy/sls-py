@@ -8,13 +8,13 @@ plugins:
   - ..
 custom:
   pythonRequirements:
-    pipArgs: >
-      --index-url=https://pypi.org/simple
+    indexUrl: https://pypi.org/simple
     shared:
       common_utils:
         source: ../shared
         functions:
           - hello
+  
     exclude:
       - pyarrow/src
 
@@ -22,4 +22,8 @@ functions:
   hello:
     module: .
     handler: handler.hello
-    zip: true
+    layers:
+      - !Ref CommonUtilsLambdaLayer
+      - !Ref WorkspacesPythonRequirementsLambdaLayer
+
+  
