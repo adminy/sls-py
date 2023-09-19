@@ -1,6 +1,6 @@
 {
-  "name": "serverless-py-requirements",
-  "version": "1.0.0",
+  "name": "sls-py",
+  "version": "1.0.1",
   "engines": {
     "node": ">=16.0"
   },

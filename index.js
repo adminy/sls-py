@@ -5,20 +5,12 @@ const fs = require('fs')
 const path = require('path')
 const util = require('util')
 const exe = util.promisify(require('child_process').exec)
-// const exists = path => fs.access(path).then(() => true).catch(() => false)
 const zl = require('zip-lib')
 const { rimraf } = require('rimraf')
 const { mkdirp } = require('mkdirp')
-
-function toPascalCase (str) {
-  if (/^[\p{L}\d]+$/iu.test(str)) {
-    return str.charAt(0).toUpperCase() + str.slice(1)
-  }
-  return str.replace(
-    /([\p{L}\d])([\p{L}\d]*)/giu,
-    (g0, g1, g2) => g1.toUpperCase() + g2 //.toLowerCase()
-  ).replace(/[^\p{L}\d]/giu, '')
-}
+const parseRequirements = require('./parse-requirements')
+const zip = require('./zip')
+const toPascalCase = require('./pascal-case')
 
 const excludeDefaults = [
   '.git',
@@ -39,70 +31,8 @@ const excludeDefaults = [
   'requirements.txt',
   'requirements_dev.txt',
   '.npm',
-  '*.md',
-  // Add some of these when we scan beyond the current directory
-  // '**/*.py[c|o]', '**/__pycache__*', '**/*.dist-info*', '**/README*', '**/LICENSE*', 'scipy/linalg/src', 'numpy/f2py/src', 'scipy/optimize/_highs/cython/src',
-  // - 'networkx/**/tests', 'networkx/testing', 'pandas/tests', 'psutil/tests', 'share/doc', 'docutils/**', 'numpy/*/tests', 'numpy/tests', 'numpy/doc',  
-  // - 'scipy/**/tests', 'pyarrow/src', 'pyarrow/includes', 'pyarrow/include', 'pyarrow/tests', 'pyarrow/*gandiva*', 'pyarrow/*plasma*', 'scipy/*.rst.txt'
-  // - 'numpy/core/include/numpy', 'scipy.libs/libgfortran-2e0d59d6.so.5.0.0', 'scipy.libs/libquadmath-2d0c479f.so.0.0.0'
+  '*.md'
 ]
-
-const isIn = (file, exclude) => exclude.some(pattern => file.includes(pattern.replaceAll('*', '')))
-
-const fileList = dir => fs.readdirSync(dir).reduce((list, file) => {
-  const name = path.join(dir, file)
-  const isDir = fs.statSync(name).isDirectory()
-  return list.concat(isDir ? fileList(name) : [name])
-}, [])
-
-const zip = async (source, out, exclude, log) => {
-  const z = new zl.Zip({ followSymlinks: true })
-  const files = fileList(source)
-  for (const file of files) {
-    if (isIn(file.slice(source.length), exclude)) {
-      log?.update(`Skipping ${file}`)
-      continue
-    }
-    z.addFile(file)
-  }
-  await z.archive(out)
-}
-
-
-const parseFile = file =>
-  fs.readFileSync(file, 'utf-8')
-    .replace(/\\\n/g, ' ').split(/\r?\n/)
-    .map(line => line.split('#')[0].trim())
-    .filter(line => line)
-    .reduce((acc, line) => [...acc,
-      ...((line.startsWith('-r') || line.startsWith('--requirement')) ?
-        parseFile(path.join(path.dirname(file), line.replace(/^--?r\w*\s*=?\s*/, '')))
-        : [line])
-    ], [])
-
-const parseRequirements = source => {
-  const requirementsFile = parseFile(path.join(source, 'requirements.txt'))
-  const constraints = []
-  const args = new Set()
-  const requirements = []
-  for (const line of requirementsFile) {
-    if (line.startsWith('-i') || line.startsWith('--index-url') || line.startsWith('--extra-index-url') || line.startsWith('--trusted-host')) {
-      args.add(line)
-      continue
-    }
-    else if (line.startsWith('-c') || line.startsWith('--constraint')) {
-      constraints.push(...parseFile(path.join(source, line.replace(/^--?c\w*\s*=?\s*/, ''))))
-      continue
-    }
-    else if (line.startsWith('-')) continue
-    requirements.push(line)
-  }
-  for (const constraint of constraints) {
-    const index = requirements.findIndex(r => r.split(/[>=]+/)[0] == constraint.split(/[>=]+/)[0])
-    requirements[index] = constraint
-  }
-  return { requirements: [...new Set(requirements)], args: [...args] }
-}
 
 const packageDependencyAsLayer = async (source, layers, exclude, depsLog) => {
   const {requirements, args} = parseRequirements(source)
@@ -222,15 +152,11 @@ const afterPackage = async ({ serverless, log }) => {}
 module.exports = class {
   constructor(serverless, _, { log, progress, writeText }) {
     const options = serverless.service.custom?.pythonRequirements || {}
+    if (!Object.keys(options).length) return log.warn('To make this a python project, add "pythonRequirements" inside custom!')
     Object.assign(this, {serverless, options, log, progress, writeText, slsPath: path.join(serverless.config.servicePath, '.serverless')})
     serverless.configSchemaHandler?.defineFunctionProperties?.('aws', {
       properties: {
         module: { type: 'string', },
-    //     zip: { type: 'boolean', default: false },
-    //     cmd: { type:'string', default: '' },
-    //     pipArgs: { type:'string', default: '' },
-    //     exclude: { type: 'array', default: [] },
-    //     shared: { type: 'object', default: {} },
       }
     })
 
@@ -240,6 +166,11 @@ module.exports = class {
       'after:package:createDeploymentArtifacts': () => afterPackage(this),
       'before:deploy:function:packageFunction': () => beforePackage(this),
       'after:deploy:function:packageFunction': () => afterPackage(this),
+      'before:offline:start': beforePackage(this),
+      'after:offline:start': afterPackage(this),
+      'before:offline:start:init': beforePackage(this),
+      'after:offline:start:init': afterPackage(this),
+
     }
   }
   handleExit(signals) {
