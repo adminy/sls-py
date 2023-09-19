@@ -134,8 +134,9 @@ const beforePackage = ({ serverless, log, progress, slsPath, options }) => {
   serverless.zips = {}
   const service = serverless.service
   // defaults
-  service.package.individually = true
-  service.layers = service.layers || {}  
+  service.package.individually = false
+  service.package.excludeDevDependencies = false
+  service.layers = service.layers || {}
 
   const slsFns = service?.functions || {}
   const inputOptions = serverless.processedInput.options
@@ -147,7 +148,9 @@ const beforePackage = ({ serverless, log, progress, slsPath, options }) => {
   )).catch(e => log.error(e))
 }
 
-const afterPackage = async ({ serverless, log }) => {}
+const afterPackage = async ({ serverless, log }) => {
+  // log.info('Packaged' + JSON.stringify(Object.keys(serverless.service.functions)))
+}
 
 module.exports = class {
   constructor(serverless, _, { log, progress, writeText }) {
