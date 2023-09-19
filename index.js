@@ -36,8 +36,9 @@ const excludeDefaults = [
 
 const packageDependencyAsLayer = async (source, layers, exclude, depsLog) => {
   const {requirements, args} = parseRequirements(source)
+  const name = toPascalCase(requirements.join('-').slice(0, 200))
   await Promise.all(requirements.map(async requirement => {
-    const target = path.join(layers, toPascalCase(requirement))
+    const target = path.join(layers, name) // path.join(layers, toPascalCase(requirement))
     if (fs.existsSync(target + '.zip')) return
     depsLog?.update(`Installing ${requirement}`)
     await exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
@@ -48,7 +49,7 @@ const packageDependencyAsLayer = async (source, layers, exclude, depsLog) => {
     depsLog?.update(`Packaged ${requirement}`)
   }))
   depsLog?.remove()
-  return requirements.map(requirement => toPascalCase(requirement))
+  return [name] //requirements.map(requirement => toPascalCase(requirement))
 }
 
 const createLayers = (names, layersPath, serverless) => names.map(ref => {

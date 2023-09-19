@@ -1,6 +1,6 @@
 {
   "name": "sls-py",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "engines": {
     "node": ">=16.0"
   },
