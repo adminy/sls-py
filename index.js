@@ -128,10 +128,8 @@ const makeSharedModules = async (fnName, shared, outPath, slsPath, exclude, inde
     const moduleName = toPascalCase(sharedModule + 'Shared')
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
-      if (!fs.existsSync(out)) {
-        const target = path.join(slsPath, '..', source)
-        await zip(target, out, exclude, log)
-      }
+      const target = path.join(slsPath, '..', source)
+      await zip(target, out, exclude, log)
       resolve([moduleName])
     }))
     sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, indexUrl, log))
