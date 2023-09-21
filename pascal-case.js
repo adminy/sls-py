@@ -1,4 +1,4 @@
-const toPascalCase = str => {
+export default str => {
 	if (/^[\p{L}\d]+$/iu.test(str)) {
 	  return str.charAt(0).toUpperCase() + str.slice(1)
 	}
@@ -7,4 +7,3 @@ const toPascalCase = str => {
 	  (g0, g1, g2) => g1.toUpperCase() + g2 //.toLowerCase()
 	).replace(/[^\p{L}\d]/giu, '')
 }
-module.exports = toPascalCase

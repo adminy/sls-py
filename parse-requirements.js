@@ -1,9 +1,9 @@
 
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
 
 const parseFile = file =>
-  fs.readFileSync(file, 'utf-8')
+  fs.existsSync(file) ? fs.readFileSync(file, 'utf-8')
     .replace(/\\\n/g, ' ').split(/\r?\n/)
     .map(line => line.split('#')[0].trim())
     .filter(line => line)
@@ -11,13 +11,16 @@ const parseFile = file =>
       ...((line.startsWith('-r') || line.startsWith('--requirement')) ?
         parseFile(path.join(path.dirname(file), line.replace(/^--?r\w*\s*=?\s*/, '')))
         : [line])
-    ], [])
+    ], []) : []
 
-const parseRequirements = source => {
+const parseRequirements = (source, indexUrl) => {
   const requirementsFile = parseFile(path.join(source, 'requirements.txt'))
   const constraints = []
   const args = new Set()
   const requirements = []
+
+  indexUrl && args.add('--index-url ' + indexUrl)
+
   for (const line of requirementsFile) {
     if (line.startsWith('-i') || line.startsWith('--index-url') || line.startsWith('--extra-index-url') || line.startsWith('--trusted-host')) {
       args.add(line)
@@ -37,4 +40,4 @@ const parseRequirements = source => {
   return { requirements: [...new Set(requirements)], args: [...args] }
 }
 
-module.exports = parseRequirements
+export default parseRequirements

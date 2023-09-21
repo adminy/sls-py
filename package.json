@@ -1,6 +1,6 @@
 {
   "name": "sls-py",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "engines": {
     "node": ">=16.0"
   },
@@ -22,6 +22,7 @@
     "serverless.com"
   ],
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "cd example && sls package"
   },
@@ -32,6 +33,7 @@
     "serverless": "3"
   },
   "dependencies": {
+    "globby": "^13.2.2",
     "mkdirp": "^3.0.1",
     "rimraf": "^5.0.1",
     "zip-lib": "^0.7.3"
