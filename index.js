@@ -24,11 +24,13 @@ const excludeDefaults = [
   '!**/.DS_Store',
   '!**/node_modules',
   '!**/__pycache__',
+  '!**/__pycache__/*',
   '!**/npm-debug.log',
   '!**/package-lock.json',
   '!**/yarn.lock',
   '!**/serverless.yml',
   '!**/package.json',
+  '!**/Dockerfile',
   '!**/constraints.txt',
   '!**/requirements.txt',
   '!**/requirements_dev.txt',
@@ -38,9 +40,9 @@ const excludeDefaults = [
   '!**/.npm*',
   '!**/*.md',
   '!**/*.py[c|o]',
-  '!**/__pycache__*',
   '!**/README*',
   '!**/LICENSE*',
+  '!**/COPYING',
   '!**/scipy/linalg/src',
   '!**/numpy/f2py/src',
   '!**/scipy/optimize/_highs/cython/src',
@@ -83,17 +85,16 @@ const packageDependencyAsLayer = async (source, outPath, exclude, indexUrl, deps
   const name = toPascalCase('deps-' + requirements.join('-').slice(0, 1000))
   const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
   if (fs.existsSync(target + '.zip')) return [name]
-  await Promise.all(requirements.map(async requirement => {
-    depsLog?.update(`Installing ${requirement} ...`)
-    await exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
-    depsLog?.update(`Installed ${requirement}! `)
-  }))
+  depsLog?.update(`Installing ${requirements.length} requirements ...`)
+  await Promise.all(requirements.map(requirement =>
+    exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
+  ))
   depsLog?.update(`Zipping ${name} ...`)
   await zip(target, target + '.zip', exclude, depsLog)
   depsLog?.update(`Cleanup ${name}`)
   try {
     await rimraf(target)
-  } catch (err) { depsLog?.update(`Removing ${target}`) }
+  } catch (err) { depsLog?.update(`Removing ${target} failed.`) }
   depsLog?.update(`Packaged ${name}`)
   depsLog?.remove()
   return [name] //requirements.map(requirement => toPascalCase(requirement))
