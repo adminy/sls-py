@@ -34,46 +34,49 @@ const excludeDefaults = [
   '!**/constraints.txt',
   '!**/requirements.txt',
   '!**/requirements_dev.txt',
-  '!**/*.dist-info',
   '!**/yarn*',
   '!**/.npm*',
   '!**/*.md',
-  '!**/*.py[c|o]',
+  '!**/*.py(c|o)',
   '!**/README*',
   '!**/LICENSE*',
   '!**/COPYING',
-  '!python/include',
-  '!python/networkx/**/tests',
-  '!python/networkx/testing',
-  '!python/pandas/tests',
-  '!python/pandas/_libs/tslibs/src',
-  '!python/pandas/_libs/src',
-  '!python/psutil/tests',
-  '!python/share/doc',
-  '!python/docutils',
-  '!python/numpy/doc',
-  '!python/numpy/**/tests',
-  '!python/numpy/f2py/src',
-  '!python/numpy/core/include/numpy',
-  '!python/scipy/linalg/src',
-  '!python/scipy/optimize/_highs/cython/src',
-  '!python/scipy/**/tests',
-  '!python/scipy/*.rst.txt',
-  '!python/pyarrow/src',
-  '!python/pyarrow/includes',
-  '!python/pyarrow/include',
-  '!python/pyarrow/tests',
-  '!python/pyarrow/*gandiva*',
-  '!python/pyarrow/*plasma*',
-  '!python/scipy.libs/libgfortran-2e0d59d6.so.5.0.0',
-  '!python/scipy.libs/libquadmath-2d0c479f.so.0.0.0'
+  '!THIRD-PARTY-LICENSES',
+  '!include',
+  '!networkx/**/tests',
+  '!networkx/testing',
+  '!pandas/tests',
+  '!pandas/_libs/tslibs/src',
+  '!pandas/_libs/src',
+  '!psutil/tests',
+  '!share/doc',
+  '!docutils',
+  '!numpy/doc',
+  '!numpy/**/tests',
+  '!numpy/f2py/src',
+  '!numpy/core/include/numpy',
+  '!scipy/linalg/src',
+  '!scipy/optimize/_highs/cython/src',
+  '!scipy/**/tests',
+  '!scipy/*.rst.txt',
+  '!pyarrow/src',
+  '!pyarrow/includes',
+  '!pyarrow/include',
+  '!pyarrow/tests',
+  '!pyarrow/*gandiva*',
+  '!pyarrow/*plasma*',
+  '!scipy.libs/libgfortran-*.0',
+  '!scipy.libs/libquadmath-*.0',
+  '!scipy.libs/libopenblasp-*.so',
+  '!pyarrow/tensorflow/plasma_op.cc',
 ]
 
-const zip = async (source, out, exclude, log) => {
+const zip = async (source, out, exclude, log, prefix='') => {
   const z = new zl.Zip({ followSymlinks: true })
   for await (const file of globbyStream(exclude, {cwd: source, gitignore: true})) {
+    if (file.includes('.dist-info/')) continue
     log?.update(`Adding ${file}`)
-    z.addFile(path.join(source, file), file)
+    z.addFile(path.join(source, file), prefix + file)
   }
   try {
     await z.archive(out)
@@ -83,24 +86,20 @@ const zip = async (source, out, exclude, log) => {
 const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog) => {
   const {requirements, args} = parseRequirements(source, options)
   if (requirements.length === 0) return []
-  const name = 'Deps' + createHash('sha1').update(requirements.join('-')).digest('hex')
-  const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
+  const name = 'Deps' + createHash('sha1').update(requirements.join('-') + exclude.join('-')).digest('hex')
+  const target = path.join(outPath, name)
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
   await Promise.all(requirements.map(async (requirement, i) => {
     depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
-    await exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
+    await exe(`pip install -q -t ${target} '${requirement}' ${args.join(' ')}`)
     depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
   }))
   depsLog?.update(`Zipping ${name} ...`)
-  await zip(target, target + '.zip', exclude, depsLog)
-  depsLog?.update(`Cleanup ${name}`)
-  try {
-    await rimraf(target)
-  } catch (err) { depsLog?.update(`Removing ${target} failed.`) }
+  await zip(target, target + '.zip', exclude, depsLog, 'python')
   depsLog?.update(`Packaged ${name}`)
-  depsLog?.remove()
-  return [name] //requirements.map(requirement => toPascalCase(requirement))
+  rimraf(target).catch(() => depsLog?.update(`Removing ${target} failed.`))
+  return [name]
 }
 
 const createLayers = (names, outPath, serverless) => names.map(ref => {
@@ -132,7 +131,7 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
       const target = path.join(slsPath, '..', source)
-      await zip(target, out, exclude, log)
+      await zip(target, out, exclude, log, 'python')
       resolve([moduleName])
     }))
     sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log))
@@ -144,7 +143,7 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
   const fn = slsFns[name]
   const module = fn.module || '.'
   const source = path.join(slsPath, '..', module)
-  const outPath = path.join(os.tmpdir(), 'slspy') // slsPath
+  const outPath = path.join(os.tmpdir(), 'slspy')
   const moduleZip = path.join(outPath, toPascalCase('fn-' + module) + '.zip')
   const cached = isCached(slsFns, moduleZip)
   if (cached) return Object.assign(fn, Object.assign({}, cached, fn))
@@ -154,7 +153,7 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
   const appInfo = progress.get('fn::' + name)
   appInfo?.update('Packaging layers ...')
 
-  const exclude = (options.exclude || []).concat(options.excludeDefaults ? [] : excludeDefaults)
+  const exclude = excludeDefaults.concat(options.exclude || [])
   const sharedModules = await makeSharedModules(outPath, slsPath, exclude, options, appInfo)
   appInfo?.update('Packaging dependencies ...')
   const deps = await packageDependencyAsLayer(source, outPath, exclude, options, appInfo)
@@ -216,6 +215,9 @@ export default class {
     })
     this.hooks = {
       'before:package:createDeploymentArtifacts': () => beforePackage(this),
+      'before:deploy:function:packageFunction': () => beforePackage(this),
+      'before:offline:start': beforePackage(this),
+      'before:offline:start:init': beforePackage(this),
     }
   }
 }
