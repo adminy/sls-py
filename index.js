@@ -82,7 +82,7 @@ const packageDependencyAsLayer = async (source, outPath, exclude, indexUrl, deps
   if (requirements.length === 0) return []
   const name = toPascalCase('deps-' + requirements.join('-').slice(0, 1000))
   const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
-  if (fs.existsSync(target + '.zip')) return
+  if (fs.existsSync(target + '.zip')) return [name]
   await Promise.all(requirements.map(async requirement => {
     depsLog?.update(`Installing ${requirement} ...`)
     await exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
