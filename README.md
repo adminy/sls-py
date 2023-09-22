@@ -21,8 +21,8 @@ custom:
         functions:
           - hello
     exclude:
-      - somefile.txt
-      - data.tmp
+      - '!somefile.txt'
+      - '!data.tmp'
 
 
 functions:

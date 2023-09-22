@@ -230,9 +230,9 @@ export default class {
       // 'after:offline:start:init': afterPackage(this),
     }
   }
-  handleExit(signals) {
-    for (const signal of signals) {
-      process.on(signal, () => process.exit(0, afterPackage(this)))
-    }
-  }
+  // handleExit(signals) {
+  //   for (const signal of signals) {
+  //     process.on(signal, () => process.exit(0, afterPackage(this)))
+  //   }
+  // }
 }
