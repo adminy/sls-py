@@ -83,7 +83,7 @@ const zip = async (source, out, exclude, log) => {
 const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog) => {
   const {requirements, args} = parseRequirements(source, options)
   if (requirements.length === 0) return []
-  const name = 'deps-' + createHash('sha1').update(requirements.join('-')).digest('hex')
+  const name = 'Deps' + createHash('sha1').update(requirements.join('-')).digest('hex')
   const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
