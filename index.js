@@ -145,7 +145,6 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
   const moduleZip = path.join(outPath, toPascalCase('fn-' + module) + '.zip')
   const cached = isCached(slsFns, moduleZip)
   if (cached) return Object.assign(fn, Object.assign({}, cached, fn))
-  fn.package = {artifact: moduleZip}
 
   await mkdirp(outPath)
   
@@ -160,12 +159,13 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
 
   Object.assign(fn, {
     module,
+    package: {artifact: moduleZip},
     layers: createLayers(
       deps.concat(sharedModules),
       outPath,
       serverless
     ).concat(fn.layers || [])
-  }, options.vpn)
+  }, options.vpc ? {vpn: options.vpc} : {})
   appInfo?.update('Packaging source ...')
   await zip(source, moduleZip, exclude, appInfo)
   appInfo?.update(`Packaged ${name} ...`)
