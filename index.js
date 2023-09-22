@@ -8,10 +8,10 @@ import util from 'util'
 import zl from 'zip-lib'
 import { rimraf } from 'rimraf'
 import { mkdirp } from 'mkdirp'
+import { createHash } from 'crypto'
 import { globbyStream } from 'globby'
 import parseRequirements from './parse-requirements.js'
 import toPascalCase from './pascal-case.js'
-
 const exe = util.promisify(cp.exec)
 
 const excludeDefaults = [
@@ -83,13 +83,15 @@ const zip = async (source, out, exclude, log) => {
 const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog) => {
   const {requirements, args} = parseRequirements(source, options)
   if (requirements.length === 0) return []
-  const name = toPascalCase('deps-' + requirements.join('-').slice(0, 1000))
+  const name = 'deps-' + createHash('sha1').update(requirements.join('-')).digest('hex')
   const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
-  await Promise.all(requirements.map(requirement =>
-    exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
-  ))
+  await Promise.all(requirements.map(async (requirement, i) => {
+    depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
+    await exe(`pip install -q -t ${path.join(target, 'python')} '${requirement}' ${args.join(' ')}`)
+    depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
+  }))
   depsLog?.update(`Zipping ${name} ...`)
   await zip(target, target + '.zip', exclude, depsLog)
   depsLog?.update(`Cleanup ${name}`)
@@ -115,7 +117,6 @@ const createLayers = (names, outPath, serverless) => names.map(ref => {
   return { Ref: ref + 'LambdaLayer' }
 })
 
-// this does not work when concurrently installing packages
 const isCached = (slsFns, moduleZip) => {
   for (const name in slsFns) {
     if (slsFns[name]?.package?.artifact === moduleZip)
@@ -203,10 +204,6 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
   appInfo?.remove()
 }
 
-// const afterPackage = async ({ serverless, log }) => {
-//   // log.info('Packaged' + JSON.stringify(Object.keys(serverless.service.functions)))
-// }
-
 export default class {
   constructor(serverless, _, { log, progress, writeText }) {
     const options = serverless.service.custom?.pythonRequirements || {}
@@ -217,22 +214,8 @@ export default class {
         module: { type: 'string', },
       }
     })
-
-    // this.handleExit(['SIGINT', 'SIGTERM', 'SIGQUIT'])
     this.hooks = {
       'before:package:createDeploymentArtifacts': () => beforePackage(this),
-      // 'after:package:createDeploymentArtifacts': () => afterPackage(this),
-      // 'before:deploy:function:packageFunction': () => beforePackage(this),
-      // 'after:deploy:function:packageFunction': () => afterPackage(this),
-      // 'before:offline:start': beforePackage(this),
-      // 'after:offline:start': afterPackage(this),
-      // 'before:offline:start:init': beforePackage(this),
-      // 'after:offline:start:init': afterPackage(this),
     }
   }
-  // handleExit(signals) {
-  //   for (const signal of signals) {
-  //     process.on(signal, () => process.exit(0, afterPackage(this)))
-  //   }
-  // }
 }
