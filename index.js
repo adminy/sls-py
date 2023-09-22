@@ -35,7 +35,6 @@ const excludeDefaults = [
   '!**/requirements.txt',
   '!**/requirements_dev.txt',
   '!**/*.dist-info',
-  '!**/*.dist-info/*',
   '!**/yarn*',
   '!**/.npm*',
   '!**/*.md',
@@ -43,29 +42,31 @@ const excludeDefaults = [
   '!**/README*',
   '!**/LICENSE*',
   '!**/COPYING',
-  '!**/scipy/linalg/src',
-  '!**/numpy/f2py/src',
-  '!**/scipy/optimize/_highs/cython/src',
-  '!**/networkx/**/tests',
-  '!**/networkx/testing',
-  '!**/pandas/tests',
-  '!**/psutil/tests',
-  '!**/share/doc',
-  '!**/docutils/**',
-  '!**/numpy/*/tests',
-  '!**/numpy/tests',
-  '!**/numpy/doc',
-  '!**/scipy/**/tests',
-  '!**/scipy/*.rst.txt',
-  '!**/pyarrow/src',
-  '!**/pyarrow/includes',
-  '!**/pyarrow/include',
-  '!**/pyarrow/tests',
-  '!**/pyarrow/*gandiva*',
-  '!**/pyarrow/*plasma*',
-  '!**/numpy/core/include/numpy',
-  '!**/scipy.libs/libgfortran-2e0d59d6.so.5.0.0',
-  '!**/scipy.libs/libquadmath-2d0c479f.so.0.0.0'
+  '!python/include',
+  '!python/networkx/**/tests',
+  '!python/networkx/testing',
+  '!python/pandas/tests',
+  '!python/pandas/_libs/tslibs/src',
+  '!python/pandas/_libs/src',
+  '!python/psutil/tests',
+  '!python/share/doc',
+  '!python/docutils',
+  '!python/numpy/doc',
+  '!python/numpy/**/tests',
+  '!python/numpy/f2py/src',
+  '!python/numpy/core/include/numpy',
+  '!python/scipy/linalg/src',
+  '!python/scipy/optimize/_highs/cython/src',
+  '!python/scipy/**/tests',
+  '!python/scipy/*.rst.txt',
+  '!python/pyarrow/src',
+  '!python/pyarrow/includes',
+  '!python/pyarrow/include',
+  '!python/pyarrow/tests',
+  '!python/pyarrow/*gandiva*',
+  '!python/pyarrow/*plasma*',
+  '!python/scipy.libs/libgfortran-2e0d59d6.so.5.0.0',
+  '!python/scipy.libs/libquadmath-2d0c479f.so.0.0.0'
 ]
 
 const zip = async (source, out, exclude, log) => {
@@ -79,8 +80,8 @@ const zip = async (source, out, exclude, log) => {
   } catch (err) { log?.update(`Could not archive ${source}`) }
 }
 
-const packageDependencyAsLayer = async (source, outPath, exclude, indexUrl, depsLog) => {
-  const {requirements, args} = parseRequirements(source, indexUrl)
+const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog) => {
+  const {requirements, args} = parseRequirements(source, options)
   if (requirements.length === 0) return []
   const name = toPascalCase('deps-' + requirements.join('-').slice(0, 1000))
   const target = path.join(outPath, name) // path.join(outPath, toPascalCase(requirement))
@@ -114,6 +115,7 @@ const createLayers = (names, outPath, serverless) => names.map(ref => {
   return { Ref: ref + 'LambdaLayer' }
 })
 
+// this does not work when concurrently installing packages
 const isCached = (slsFns, moduleZip) => {
   for (const name in slsFns) {
     if (slsFns[name]?.package?.artifact === moduleZip)
@@ -121,11 +123,10 @@ const isCached = (slsFns, moduleZip) => {
   }
 }
 
-const makeSharedModules = async (fnName, shared, outPath, slsPath, exclude, indexUrl, progress) => {
+const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
+  const shared = Object.entries(options.shared || {})
   const sharedModules = []
-  const log = progress.get(`layer::${fnName}::shared`)
-  for (const [sharedModule, {source, functions}] of shared) {
-    if (!functions.includes(fnName)) continue
+  for (const [sharedModule, source] of shared) {
     const moduleName = toPascalCase(sharedModule + 'Shared')
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
@@ -133,7 +134,7 @@ const makeSharedModules = async (fnName, shared, outPath, slsPath, exclude, inde
       await zip(target, out, exclude, log)
       resolve([moduleName])
     }))
-    sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, indexUrl, log))
+    sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log))
   }
   return (await Promise.all(sharedModules)).flat()
 }
@@ -148,15 +149,14 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
   if (cached) return Object.assign(fn, Object.assign({}, cached, fn))
 
   await mkdirp(outPath)
-  
+
   const appInfo = progress.get('fn::' + name)
   appInfo?.update('Packaging layers ...')
 
   const exclude = (options.exclude || []).concat(options.excludeDefaults ? [] : excludeDefaults)
-  const shared = Object.entries(options.shared || {})
-  const sharedModules = await makeSharedModules(name, shared, outPath, slsPath, exclude, options.indexUrl, progress)
+  const sharedModules = await makeSharedModules(outPath, slsPath, exclude, options, appInfo)
   appInfo?.update('Packaging dependencies ...')
-  const deps = await packageDependencyAsLayer(source, outPath, exclude, options.indexUrl, progress.get(`fn::${name}::deps`))
+  const deps = await packageDependencyAsLayer(source, outPath, exclude, options, appInfo)
 
   Object.assign(fn, {
     module,
@@ -166,7 +166,8 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
       outPath,
       serverless
     ).concat(fn.layers || [])
-  }, options.vpc ? {vpn: options.vpc} : {})
+  }, options.vpc ? {vpc: options.vpc} : {})
+
   appInfo?.update('Packaging source ...')
   await zip(source, moduleZip, exclude, appInfo)
   appInfo?.update(`Packaged ${name} ...`)
@@ -176,7 +177,7 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
 const isFunction = (fn, service) =>
   (fn.runtime || service.provider.runtime).match(/^python.*/) && !fn.image
 
-const beforePackage = ({ serverless, log, progress, slsPath, options }) => {
+const beforePackage = async ({ serverless, log, progress, slsPath, options }) => {
   // set up zips for uploading
   serverless.zips = {}
   const service = serverless.service
@@ -190,14 +191,21 @@ const beforePackage = ({ serverless, log, progress, slsPath, options }) => {
   const functions = (inputOptions.function ? [inputOptions.function] : Object.keys(slsFns))
     .filter(name => isFunction(slsFns[name], service))
 
-  return Promise.all(functions.map(name => 
-    packageFunction(slsFns, name, slsPath, options, serverless, progress, log)
-  )).catch(e => log.error(e))
+  const appInfo = progress.get(`sls-py::${functions.length}::fns`)
+
+  for (let i = 0; i < functions.length; i++) {
+    const name = functions[i]
+    appInfo?.update(`Packaging ${i}/${functions.length} ${name}...`)
+    try {
+      await packageFunction(slsFns, name, slsPath, options, serverless, progress, log)
+    } catch (err) { log.error(err) }
+  }
+  appInfo?.remove()
 }
 
-const afterPackage = async ({ serverless, log }) => {
-  // log.info('Packaged' + JSON.stringify(Object.keys(serverless.service.functions)))
-}
+// const afterPackage = async ({ serverless, log }) => {
+//   // log.info('Packaged' + JSON.stringify(Object.keys(serverless.service.functions)))
+// }
 
 export default class {
   constructor(serverless, _, { log, progress, writeText }) {
@@ -213,7 +221,7 @@ export default class {
     this.handleExit(['SIGINT', 'SIGTERM', 'SIGQUIT'])
     this.hooks = {
       'before:package:createDeploymentArtifacts': () => beforePackage(this),
-      'after:package:createDeploymentArtifacts': () => afterPackage(this),
+      // 'after:package:createDeploymentArtifacts': () => afterPackage(this),
       // 'before:deploy:function:packageFunction': () => beforePackage(this),
       // 'after:deploy:function:packageFunction': () => afterPackage(this),
       // 'before:offline:start': beforePackage(this),

@@ -1,29 +1,28 @@
 service: sls-py-req-test
 
-provider:
-  name: aws
-  runtime: python3.7
-
 plugins:
   - ..
+
+provider:
+  name: aws
+  runtime: python3.9
+  region: eu-west-1
+  vpc:
+    subnetIds: !Split [",", "subnet-id1,subnet-id2"]
+    securityGroupIds: !Split [",", "sg-id1,sg-id2"]
 custom:
   pythonRequirements:
+    vpc: ${self:provider.vpc}
     indexUrl: https://pypi.org/simple
+    extraIndexUrl: https://pypi.org/simple
+    trustedHost: pypi.org
     shared:
-      common_utils:
-        source: ../shared
-        functions:
-          - hello
-  
+      common_utils: ../shared
     exclude:
-      - pyarrow/src
+      - '!somefile.txt'
+      - '!data.tmp'
 
 functions:
   hello:
     module: .
     handler: handler.hello
-    layers:
-      - !Ref CommonUtilsLambdaLayer
-      - !Ref WorkspacesPythonRequirementsLambdaLayer
-
-  

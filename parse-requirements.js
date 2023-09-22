@@ -13,13 +13,15 @@ const parseFile = file =>
         : [line])
     ], []) : []
 
-const parseRequirements = (source, indexUrl) => {
+const parseRequirements = (source, options) => {
   const requirementsFile = parseFile(path.join(source, 'requirements.txt'))
   const constraints = []
   const args = new Set()
   const requirements = []
 
-  indexUrl && args.add('--index-url ' + indexUrl)
+  options.indexUrl && args.add('--index-url ' + options.indexUrl)
+  options.extraIndexUrl && args.add('--extra-index-url ' + options.extraIndexUrl)
+  options.trustedHost && args.add('--trusted-host ' + options.trustedHost)
 
   for (const line of requirementsFile) {
     if (line.startsWith('-i') || line.startsWith('--index-url') || line.startsWith('--extra-index-url') || line.startsWith('--trusted-host')) {
