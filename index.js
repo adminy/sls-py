@@ -218,7 +218,7 @@ export default class {
       }
     })
 
-    this.handleExit(['SIGINT', 'SIGTERM', 'SIGQUIT'])
+    // this.handleExit(['SIGINT', 'SIGTERM', 'SIGQUIT'])
     this.hooks = {
       'before:package:createDeploymentArtifacts': () => beforePackage(this),
       // 'after:package:createDeploymentArtifacts': () => afterPackage(this),
