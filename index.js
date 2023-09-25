@@ -99,7 +99,7 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
     depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
   }))
   depsLog?.update(`Zipping ${name} ...`)
-  await zip(target, target + '.zip', exclude, depsLog, 'python')
+  await zip(target, target + '.zip', exclude, depsLog, 'python/')
   depsLog?.update(`Packaged ${name}`)
   rimraf(target).catch(() => depsLog?.update(`Removing ${target} failed.`))
   return [name]
@@ -134,7 +134,7 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
       const target = path.join(slsPath, '..', source)
-      await zip(target, out, exclude, log, 'python')
+      await zip(target, out, exclude, log, 'python/')
       resolve([moduleName])
     }))
     sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log))
