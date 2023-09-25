@@ -86,7 +86,7 @@ const zip = async (source, out, exclude, log, prefix='') => {
   } catch (err) { log?.update(`Could not archive ${source}`) }
 }
 
-const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog) => {
+const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog, isShared = false) => {
   const {requirements, args} = parseRequirements(source, options)
   if (requirements.length === 0) return []
   const name = 'Deps' + createHash('sha1').update(requirements.join('-') + exclude.join('-')).digest('hex')
@@ -99,12 +99,12 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
     depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
   }))
   const deps = (fs.existsSync(target) ? fs.readdirSync(target) : []).filter(dep => {
-    if (!options.requirements.has(dep)) {
-      options.requirements.add(dep)
-      return true
+    if (options.requirements.has(dep)) {
+      rimrafSync(path.join(target, dep))
+      return false
     }
-    rimrafSync(path.join(target, dep))
-    return false
+    isShared && options.requirements.add(dep)
+    return true
   })
 
   if (deps.length === 0) return []
@@ -149,7 +149,7 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
       await zip(target, out, exclude, log, 'python/')
       resolve([moduleName])
     }))
-    sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log))
+    sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log, true))
   }
   return (await Promise.all(sharedModules)).flat()
 }
