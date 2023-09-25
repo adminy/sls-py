@@ -6,7 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import zl from 'zip-lib'
-import { rimraf } from 'rimraf'
+import { rimraf, rimrafSync } from 'rimraf'
 import { mkdirp } from 'mkdirp'
 import { createHash } from 'crypto'
 import { globbyStream } from 'globby'
@@ -74,13 +74,15 @@ const excludeDefaults = [
 
 const zip = async (source, out, exclude, log, prefix='') => {
   const z = new zl.Zip({ followSymlinks: true })
+  let archive = false
   for await (const file of globbyStream(exclude, {cwd: source, gitignore: true})) {
     if (file.includes('.dist-info/')) continue
+    archive = true
     log?.update(`Adding ${file}`)
     z.addFile(path.join(source, file), prefix + file)
   }
   try {
-    await z.archive(out)
+    archive && await z.archive(out)
   } catch (err) { log?.update(`Could not archive ${source}`) }
 }
 
@@ -92,14 +94,24 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
   await Promise.all(requirements.map(async (requirement, i) => {
-    if (options.requirements.has(requirement)) return
-    options.requirements.add(requirement)
     depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
     await exe(`pip install -q -t ${target} '${requirement}' ${args.join(' ')}`)
     depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
   }))
+  const deps = (fs.existsSync(target) ? fs.readdirSync(target) : []).filter(dep => {
+    if (!options.requirements.has(dep)) {
+      options.requirements.add(dep)
+      return true
+    }
+    rimrafSync(path.join(target, dep))
+    return false
+  })
+
+  if (deps.length === 0) return []
+
   depsLog?.update(`Zipping ${name} ...`)
   await zip(target, target + '.zip', exclude, depsLog, 'python/')
+  if (!fs.existsSync(target + '.zip')) return []
   depsLog?.update(`Packaged ${name}`)
   rimraf(target).catch(() => depsLog?.update(`Removing ${target} failed.`))
   return [name]
@@ -142,6 +154,8 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
   return (await Promise.all(sharedModules)).flat()
 }
 
+const unique = a => a.filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
+
 const packageFunction = async (slsFns, name, slsPath, options, serverless, progress, log) => {
   const fn = slsFns[name]
   const module = fn.module || '.'
@@ -164,11 +178,11 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
   Object.assign(fn, {
     module,
     package: {artifact: moduleZip},
-    layers: createLayers(
+    layers: unique(createLayers(
       deps.concat(sharedModules),
       outPath,
       serverless
-    ).concat(fn.layers || []).filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
+    ).concat(fn.layers || []))
   }, options.vpc ? {vpc: options.vpc} : {})
 
   appInfo?.update('Packaging source ...')
@@ -219,9 +233,9 @@ export default class {
     })
     this.hooks = {
       'before:package:createDeploymentArtifacts': () => beforePackage(this),
-      'before:deploy:function:packageFunction': () => beforePackage(this),
-      'before:offline:start': beforePackage(this),
-      'before:offline:start:init': beforePackage(this),
+      // 'before:deploy:function:packageFunction': () => beforePackage(this),
+      // 'before:offline:start': beforePackage(this),
+      // 'before:offline:start:init': beforePackage(this),
     }
   }
 }
