@@ -40,13 +40,20 @@ functions:
 from common_utils import shared_resource
 ```
 
-
 <!-- - [ ] [zip-imports](https://docs.python.org/3/library/zipimport.html) -->
 
 ## Requirements
 ---
 - [x] python & pip installed
 - [x] minimum required node version >= 16
+
+### Features
+- `shared` is attached to all the lambdas.
+  - you can place repeated dependencies inside your shared layer to:
+    - save space.
+    - reduce cold startup time.
+    - faster deployments.
+- `exclude` works for excluding code and dependencies alike.
 
 ## TODO improvements
 - We're waiting on packages that isn't duplicated work, figure out how to sort all functions in a way that duplicates promise last, everything else is parallel rather than sequential
