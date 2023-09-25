@@ -146,7 +146,7 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
       const target = path.join(slsPath, '..', source)
-      await zip(target, out, exclude, log, 'python/')
+      await zip(target, out, exclude, log, `python/${sharedModule}/`)
       resolve([moduleName])
     }))
     sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log, true))
