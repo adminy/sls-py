@@ -91,6 +91,8 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
   await Promise.all(requirements.map(async (requirement, i) => {
+    if (options.requirements.has(requirement)) return
+    options.requirements.add(requirement)
     depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
     await exe(`pip install -q -t ${target} '${requirement}' ${args.join(' ')}`)
     depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
@@ -207,6 +209,7 @@ export default class {
   constructor(serverless, _, { log, progress, writeText }) {
     const options = serverless.service.custom?.pythonRequirements || {}
     if (!Object.keys(options).length) return log.warn('To make this a python project, add "pythonRequirements" inside custom!')
+    options.requirements = new Set()
     Object.assign(this, {serverless, options, log, progress, writeText, slsPath: path.join(serverless.config.servicePath, '.serverless')})
     serverless.configSchemaHandler?.defineFunctionProperties?.('aws', {
       properties: {
