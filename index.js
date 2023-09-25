@@ -32,6 +32,7 @@ const excludeDefaults = [
   '!**/package.json',
   '!**/Dockerfile',
   '!**/constraints.txt',
+  '!**/requirements.in',
   '!**/requirements.txt',
   '!**/requirements_dev.txt',
   '!**/yarn*',
