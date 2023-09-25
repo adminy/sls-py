@@ -117,7 +117,7 @@ const createLayers = (names, outPath, serverless) => names.map(ref => {
     }
   }
   return { Ref: ref + 'LambdaLayer' }
-}).filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
+})
 
 const isCached = (slsFns, moduleZip) => {
   for (const name in slsFns) {
@@ -168,7 +168,7 @@ const packageFunction = async (slsFns, name, slsPath, options, serverless, progr
       deps.concat(sharedModules),
       outPath,
       serverless
-    ).concat(fn.layers || [])
+    ).concat(fn.layers || []).filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
   }, options.vpc ? {vpc: options.vpc} : {})
 
   appInfo?.update('Packaging source ...')
