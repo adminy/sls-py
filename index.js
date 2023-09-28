@@ -156,30 +156,23 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
 
 const unique = a => a.filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
 
-const packageFunction = async (slsFns, name, slsPath, options, serverless, progress, log) => {
+const packageFunction = async (slsFns, name, slsPath, outPath, moduleToDep, sharedModules, exclude, options, serverless, progress, log) => {
   const fn = slsFns[name]
   const module = fn.module || '.'
   const source = path.join(slsPath, '..', module)
-  const outPath = path.join(os.tmpdir(), 'slspy')
+
   const moduleZip = path.join(outPath, toPascalCase('fn-' + module) + '.zip')
   const cached = isCached(slsFns, moduleZip)
   if (cached) return Object.assign(fn, Object.assign({}, cached, fn))
 
-  await mkdirp(outPath)
-
   const appInfo = progress.get('fn::' + name)
   appInfo?.update('Packaging layers ...')
-
-  const exclude = excludeDefaults.concat(options.exclude || [])
-  const sharedModules = await makeSharedModules(outPath, slsPath, exclude, options, appInfo)
-  appInfo?.update('Packaging dependencies ...')
-  const deps = await packageDependencyAsLayer(source, outPath, exclude, options, appInfo)
 
   Object.assign(fn, {
     module,
     package: {artifact: moduleZip},
     layers: unique(createLayers(
-      deps.concat(sharedModules),
+      moduleToDep[module].concat(sharedModules),
       outPath,
       serverless
     ).concat(fn.layers || []))
@@ -210,12 +203,40 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
 
   const appInfo = progress.get(`sls-py::${functions.length}::fns`)
 
-  for (let i = 0; i < functions.length; i++) {
-    const name = functions[i]
-    appInfo?.update(`Packaging ${i}/${functions.length} ${name}...`)
-    try {
-      await packageFunction(slsFns, name, slsPath, options, serverless, progress, log)
-    } catch (err) { log.error(err) }
+  const outPath = path.join(os.tmpdir(), 'slspy')
+  const exclude = excludeDefaults.concat(options.pattern || [])
+  await mkdirp(outPath)
+
+  appInfo?.update('Packaging shared layers ...')
+  const sharedModules = await makeSharedModules(outPath, slsPath, exclude, options, appInfo)
+
+  appInfo?.update('Packaging dependencies ...')
+  const modules = [...new Set(Object.values(slsFns).map(fn => fn.module || '.'))]
+  const moduleToDep = Object.fromEntries(await Promise.all(
+    modules.map(async module => {
+      const source = path.join(slsPath, '..', module)
+      return [module, await packageDependencyAsLayer(source, outPath, exclude, options, appInfo)]
+    })
+  ))
+  
+  const processLaterModules = []
+  const uniqueModules = {}
+  for (const name of functions) {
+    const module = slsFns[name].module || '.'
+    if (uniqueModules[module]) processLaterModules.push(name)
+    else uniqueModules[module] = name
+  }
+  const tasks = [
+    Object.values(uniqueModules),
+    processLaterModules
+  ]
+  for (const fns of tasks) {
+    await Promise.all(fns.map(async (name, i, a) => {
+      try {
+        appInfo?.update(`Packaging ${i}/${a.length} ${name}...`)
+        await packageFunction(slsFns, name, slsPath, outPath, moduleToDep, sharedModules, exclude, options, serverless, progress, log)
+      } catch (err) { log.error(err) }
+    }))
   }
   appInfo?.remove()
 }

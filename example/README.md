@@ -20,7 +20,7 @@ custom:
         source: ../shared
         functions:
           - hello
-    exclude:
+    pattern:
       - '!somefile.txt'
       - '!data.tmp'
 
@@ -32,7 +32,7 @@ functions:
 > **Note**
 
 
-> filter using the `exclude` option.
+> filter using the `pattern` option.
 
 >In handler.py, **shared** code can be imported like this:
 ```py

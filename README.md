@@ -20,7 +20,7 @@ custom:
         source: ../shared
         functions:
           - hello
-    exclude:
+    pattern:
       - '!somefile.txt'
       - '!data.tmp'
 
@@ -33,7 +33,7 @@ functions:
 > **Note**
 
 
-> filter using the `exclude` option.
+> filter using the `pattern` option.
 
 >In handler.py, **shared** code can be imported like this:
 ```py
@@ -53,7 +53,9 @@ from common_utils import shared_resource
     - save space.
     - reduce cold startup time.
     - faster deployments.
-- `exclude` works for excluding code and dependencies alike.
+- `pattern` works for excluding code and dependencies alike.
 
-## TODO improvements
-- We're waiting on packages that isn't duplicated work, figure out how to sort all functions in a way that duplicates promise last, everything else is parallel rather than sequential
+
+
+
+License: [lgpl-3.0 or later](https://www.gnu.org/licenses/lgpl-3.0.txt)

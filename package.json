@@ -1,6 +1,6 @@
 {
   "name": "sls-py",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "engines": {
     "node": ">=16.0"
   },
@@ -19,6 +19,7 @@
     "aws lambda",
     "amazon",
     "amazon web services",
+    "shared services",
     "serverless.com"
   ],
   "main": "index.js",
@@ -37,5 +38,6 @@
     "mkdirp": "^3.0.1",
     "rimraf": "^5.0.1",
     "zip-lib": "^0.7.3"
-  }
+  },
+  "license": "LGPL-3.0-or-later"
 }
