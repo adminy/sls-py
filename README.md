@@ -20,9 +20,9 @@ custom:
         source: ../shared
         functions:
           - hello
-    pattern:
-      - '!somefile.txt'
-      - '!data.tmp'
+    exclude:
+      - somefile.txt
+      - data.tmp
 
 
 functions:
@@ -33,7 +33,7 @@ functions:
 > **Note**
 
 
-> filter using the `pattern` option.
+> filter using the `exclude` option.
 
 >In handler.py, **shared** code can be imported like this:
 ```py
@@ -53,7 +53,7 @@ from common_utils import shared_resource
     - save space.
     - reduce cold startup time.
     - faster deployments.
-- `pattern` works for excluding code and dependencies alike.
+- `exclude` works for excluding code and dependencies alike.
 
 
 

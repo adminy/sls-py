@@ -204,7 +204,8 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
   const appInfo = progress.get(`sls-py::${functions.length}::fns`)
 
   const outPath = path.join(os.tmpdir(), 'slspy')
-  const exclude = excludeDefaults.concat(options.pattern || [])
+  const inputExcludes = (options.exclude || []).map(excludePath => '!' + excludePath)
+  const exclude = excludeDefaults.concat(inputExcludes)
   await mkdirp(outPath)
 
   appInfo?.update('Packaging shared layers ...')

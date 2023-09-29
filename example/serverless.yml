@@ -18,9 +18,9 @@ custom:
     trustedHost: pypi.org
     shared:
       common_utils: ../shared
-    pattern:
-      - '!somefile.txt'
-      - '!data.tmp'
+    exclude:
+      - 'somefile.txt'
+      - 'data.tmp'
 
 functions:
   hello:
