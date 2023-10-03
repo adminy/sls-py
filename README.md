@@ -16,10 +16,8 @@ custom:
     extraIndexUrl: https://pypi.org/simple
     trustedHost: pypi.org
     shared:
-      common_utils:
-        source: ../shared
-        functions:
-          - hello
+      common_utils: ../shared
+      common_data: ../data
     exclude:
       - somefile.txt
       - data.tmp
