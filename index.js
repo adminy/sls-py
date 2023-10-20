@@ -45,7 +45,6 @@ const excludeDefaults = [
   '!THIRD-PARTY-LICENSES',
   '!include',
   '!networkx/**/tests',
-  '!networkx/testing',
   '!pandas/tests',
   '!pandas/_libs/tslibs/src',
   '!pandas/_libs/src',
