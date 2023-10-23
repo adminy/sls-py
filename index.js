@@ -65,9 +65,6 @@ const excludeDefaults = [
   '!pyarrow/tests',
   '!pyarrow/*gandiva*',
   '!pyarrow/*plasma*',
-  '!scipy.libs/libgfortran-*.0',
-  '!scipy.libs/libquadmath-*.0',
-  '!scipy.libs/libopenblasp-*.so',
   '!pyarrow/tensorflow/plasma_op.cc',
 ]
 
