@@ -68,17 +68,19 @@ const excludeDefaults = [
   '!pyarrow/tensorflow/plasma_op.cc',
 ]
 
+const zips = new Set()
+
 const zip = async (source, out, exclude, log, prefix='') => {
   const z = new zl.Zip({ followSymlinks: true })
   let archive = false
   for await (const file of globbyStream(exclude, {cwd: source, gitignore: true})) {
-    if (file.includes('.dist-info/')) continue
     archive = true
     log?.update(`Adding ${file}`)
     z.addFile(path.join(source, file), prefix + file)
   }
   try {
     archive && await z.archive(out)
+    archive && zips.add(out)
   } catch (err) { log?.update(`Could not archive ${source}`) }
 }
 
@@ -234,6 +236,10 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
         await packageFunction(slsFns, name, slsPath, outPath, moduleToDep, sharedModules, exclude, options, serverless, progress, log)
       } catch (err) { log.error(err) }
     }))
+  }
+  for (const zipFile in fs.readdirSync(outPath)) {
+    const target = path.join(outPath, zipFile)
+    !zips.has(target) && rimraf(target).catch(() => appInfo?.update(`Removing ${target} failed.`))
   }
   appInfo?.remove()
 }
