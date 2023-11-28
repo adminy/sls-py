@@ -80,7 +80,6 @@ const zip = async (source, out, exclude, log, prefix='') => {
   }
   try {
     archive && await z.archive(out)
-    archive && zips.add(out)
   } catch (err) { log?.update(`Could not archive ${source}`) }
 }
 
@@ -89,6 +88,7 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
   if (requirements.length === 0) return []
   const name = 'Deps' + createHash('sha1').update(requirements.join('-') + exclude.join('-')).digest('hex')
   const target = path.join(outPath, name)
+  zips.add(target + '.zip')
   if (fs.existsSync(target + '.zip')) return [name]
   depsLog?.update(`Installing ${requirements.length} requirements ...`)
   await Promise.all(requirements.map(async (requirement, i) => {
@@ -116,13 +116,15 @@ const packageDependencyAsLayer = async (source, outPath, exclude, options, depsL
 }
 
 const createLayers = (names, outPath, serverless) => names.map(ref => {
+  const artifact = path.join(outPath, ref) + '.zip'
+  zips.add(artifact)
   serverless.service.layers[ref] = {
     package: {
-      artifact: path.join(outPath, ref) + '.zip',
+      artifact,
       name: `${serverless.service.service}-${
         serverless.providers.aws.getStage()}-${
           ref.split(/(?=[A-Z])/).join('-').toLowerCase()}`,
-      description: `Python package ${ref}`,
+      description: `Python packages ${ref}`,
       compatibleRuntimes: [serverless.service.provider.runtime],
     }
   }
@@ -143,6 +145,7 @@ const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
     const moduleName = toPascalCase(sharedModule + 'Shared')
     sharedModules.push(new Promise(async resolve => {
       const out = path.join(outPath, moduleName + '.zip')
+      zips.add(out)
       const target = path.join(slsPath, '..', source)
       await zip(target, out, exclude, log, `python/${sharedModule}/`)
       resolve([moduleName])
@@ -160,6 +163,7 @@ const packageFunction = async (slsFns, name, slsPath, outPath, moduleToDep, shar
   const source = path.join(slsPath, '..', module)
 
   const moduleZip = path.join(outPath, toPascalCase('fn-' + module) + '.zip')
+  zips.add(moduleZip)
   const cached = isCached(slsFns, moduleZip)
   if (cached) return Object.assign(fn, Object.assign({}, cached, fn))
 
