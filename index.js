@@ -252,11 +252,11 @@ export default class {
   constructor(serverless, _, { log, progress, writeText }) {
     const options = serverless.service.custom?.pythonRequirements || {}
     if (!Object.keys(options).length) return log.warn('To make this a python project, add "pythonRequirements" inside custom!')
-    if (options.zip) {
-      if (!serverless.service.provider.environment)
-        serverless.serverless.provider.environment = {}
-      serverless.service.provider.environment.PYTHONPATH = '/var/task/vendored:/var/runtime:/var/runtime/_deps.zip'
-    }
+    
+    // https://hub.docker.com/r/amazon/aws-lambda-python/tags
+    //serverless.service.provider.environment.LD_LIBRARY_PATH = '/var/lang/lib:/lib64:/usr/lib64:/var/runtime:/var/runtime/lib:/var/task:/var/task/lib:/opt/lib'
+    //if (options.zip) serverless.service.provider.environment.PYTHONPATH = '/var/task/vendored:/var/runtime:/var/runtime/_deps.zip'
+    
     options.requirements = new Set()
     Object.assign(this, {serverless, options, log, progress, writeText, slsPath: path.join(serverless.config.servicePath, '.serverless')})
     serverless.configSchemaHandler?.defineFunctionProperties?.('aws', {
