@@ -241,9 +241,9 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
       } catch (err) { log.error(err) }
     }))
   }
-  for (const zipFile in fs.readdirSync(outPath)) {
+  for (const zipFile of fs.readdirSync(outPath)) {
     const target = path.join(outPath, zipFile)
-    !zips.has(target) && rimraf(target).catch(() => appInfo?.update(`Removing ${target} failed.`))
+    !zips.has(target) && rimraf(target).catch(() => log?.notice(`Removing ${target} failed.`))
   }
   appInfo?.remove()
 }
