@@ -254,6 +254,7 @@ export default class {
     if (!Object.keys(options).length) return log.warn('To make this a python project, add "pythonRequirements" inside custom!')
     
     // https://hub.docker.com/r/amazon/aws-lambda-python/tags
+    // PYTHONPATH=['/var/task', '/opt/python/lib/python3.9/site-packages', '/opt/python', '/var/runtime', '/var/lang/lib/python39.zip', '/var/lang/lib/python3.9', '/var/lang/lib/python3.9/lib-dynload', '/var/lang/lib/python3.9/site-packages', '/opt/python/lib/python3.9/site-packages', '/opt/python/jaeger_client/thrift_gen', '/opt/python/riskhub/client_py3']
     //serverless.service.provider.environment.LD_LIBRARY_PATH = '/var/lang/lib:/lib64:/usr/lib64:/var/runtime:/var/runtime/lib:/var/task:/var/task/lib:/opt/lib'
     //if (options.zip) serverless.service.provider.environment.PYTHONPATH = '/var/task/vendored:/var/runtime:/var/runtime/_deps.zip'
     
