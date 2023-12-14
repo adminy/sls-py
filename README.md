@@ -1,4 +1,4 @@
-# sls-py-pkg
+# sls-py
 ```yaml
 plugins:
   - sls-py
@@ -11,13 +11,18 @@ provider:
     securityGroupIds: !Split [",", "sg-id1,sg-id2"]
 custom:
   pythonRequirements:
+    # shared properties across all lambda functions
     vpc: ${self:provider.vpc}
+    timeout: 900
+    # pip arguments for dependency installation
     indexUrl: https://pypi.org/simple
     extraIndexUrl: https://pypi.org/simple
     trustedHost: pypi.org
+    # common modules between all lambda functions
     shared:
       common_utils: ../shared
       common_data: ../data
+    # files and directories to exclude
     exclude:
       - somefile.txt
       - data.tmp
@@ -50,7 +55,7 @@ from common_utils import shared_resource
   - you can place repeated dependencies inside your shared layer to:
     - save space.
     - reduce cold startup time.
-    - faster deployments.
+    - much faster deployments.
 - `exclude` works for excluding code and dependencies alike.
 
 

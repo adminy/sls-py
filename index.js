@@ -70,49 +70,64 @@ const excludeDefaults = [
 
 const zips = new Set()
 
-const zip = async (source, out, exclude, log, prefix='') => {
+const zip = async (toZip, out, exclude, log) => {
+  if (fs.existsSync(out)) return
   const z = new zl.Zip({ followSymlinks: true })
   let archive = false
-  for await (const file of globbyStream(exclude, {cwd: source, gitignore: true})) {
-    archive = true
-    log?.update(`Adding ${file}`)
-    z.addFile(path.join(source, file), prefix + file)
+  for (const source in toZip) {
+    const prefix = toZip[source] || ''
+    for await (const file of globbyStream(exclude, {cwd: source, gitignore: true})) {
+      archive = true
+      log?.update(`Adding ${file}`)
+      z.addFile(path.join(source, file), prefix + file)
+    }
   }
   try {
     archive && await z.archive(out)
-  } catch (err) { log?.update(`Could not archive ${source}`) }
+  } catch (err) { log?.update(`Could not archive ${Object.keys(toZip)}`) }
 }
 
-const packageDependencyAsLayer = async (source, outPath, exclude, options, depsLog, isShared = false) => {
-  const {requirements, args} = parseRequirements(source, options)
-  if (requirements.length === 0) return []
-  const name = 'Deps' + createHash('sha1').update(requirements.join('-') + exclude.join('-')).digest('hex')
-  const target = path.join(outPath, name)
-  zips.add(target + '.zip')
-  if (fs.existsSync(target + '.zip')) return [name]
-  depsLog?.update(`Installing ${requirements.length} requirements ...`)
-  await Promise.all(requirements.map(async (requirement, i) => {
-    depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
-    await exe(`pip install -q -t ${target} '${requirement}' ${args.join(' ')}`)
-    depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
-  }))
+const packageDependencyAsLayer = async (sources, outPath, exclude, options, depsLog, isShared = false) => {
+  const files = []
+  for (const source of sources) {
+    const {requirements, args} = parseRequirements(source, options)
+    if (requirements.length === 0) continue
+    files.push({ requirements, args })
+  }
+
+  const name = 'Deps' + createHash('sha1').update(
+    files.map(({requirements, args}) => requirements.join('-') + '-' + args.join('-')).join('-') 
+    + exclude.join('-')
+  ).digest('hex')
+  const target = path.join(outPath, isShared ? 'SharedDeps' : name)
+  const toInstall = []
+  for (const {requirements, args} of files) {
+    depsLog?.update(`Installing ${requirements.length} requirements ...`)
+    toInstall.push(...requirements.map(async (requirement, i) => {
+      depsLog?.update(`Installing ${i}/${requirements.length} ${requirement} ...`)
+      await exe(`pip install -q -t ${target} '${requirement}' ${args.join(' ')}`)
+      depsLog?.update(`Installed ${i}/${requirements.length} ${requirement}`)
+    }))
+  }
+  await Promise.all(toInstall)
+  
   const deps = (fs.existsSync(target) ? fs.readdirSync(target) : []).filter(dep => {
-    if (options.requirements.has(dep)) {
-      rimrafSync(path.join(target, dep))
-      return false
-    }
-    isShared && options.requirements.add(dep)
-    return true
+      if (options.requirements.has(dep)) {
+        rimrafSync(path.join(target, dep))
+        return false
+      }
+      isShared && options.requirements.add(dep)
+      return true
   })
 
   if (deps.length === 0) return []
 
-  depsLog?.update(`Zipping ${name} ...`)
-  await zip(target, target + '.zip', exclude, depsLog, 'python/')
-  if (!fs.existsSync(target + '.zip')) return []
+  depsLog?.update(`Zipping ${target} ...`)    
+  await zip({[target]: 'python/'}, target + '.zip', exclude, depsLog)
   depsLog?.update(`Packaged ${name}`)
   rimraf(target).catch(() => depsLog?.update(`Removing ${target} failed.`))
-  return [name]
+  zips.add(target + '.zip')
+  return fs.existsSync(target + '.zip') ? [isShared ? 'SharedDeps' : name] : []
 }
 
 const createLayers = (names, outPath, serverless) => names.map(ref => {
@@ -140,19 +155,19 @@ const isCached = (slsFns, moduleZip) => {
 
 const makeSharedModules = async (outPath, slsPath, exclude, options, log) => {
   const shared = Object.entries(options.shared || {})
-  const sharedModules = []
+  if (shared.length === 0) return []
+
+  const toZip = {}
   for (const [sharedModule, source] of shared) {
-    const moduleName = toPascalCase(sharedModule + 'Shared')
-    sharedModules.push(new Promise(async resolve => {
-      const out = path.join(outPath, moduleName + '.zip')
-      zips.add(out)
-      const target = path.join(slsPath, '..', source)
-      await zip(target, out, exclude, log, `python/${sharedModule}/`)
-      resolve([moduleName])
-    }))
-    sharedModules.push(packageDependencyAsLayer(source, outPath, exclude, options, log, true))
+    toZip[path.join(slsPath, '..', source)] = `python/${sharedModule}/`
   }
-  return (await Promise.all(sharedModules)).flat()
+
+  const out = path.join(outPath, 'Shared.zip')
+  await zip(toZip, out, exclude, log)
+  zips.add(out)
+  const sources = shared.map(([_, source]) => source)
+  const sharedDep = await packageDependencyAsLayer(sources, outPath, exclude, options, log, true)
+  return ['Shared', ...sharedDep]
 }
 
 const unique = a => a.filter((value, index, array) => array.findIndex(v => v.Ref === value.Ref) === index)
@@ -170,6 +185,8 @@ const packageFunction = async (slsFns, name, slsPath, outPath, moduleToDep, shar
   const appInfo = progress.get('fn::' + name)
   appInfo?.update('Packaging layers ...')
 
+  const sharedProperties = Object.fromEntries(['vpc', 'timeout'].filter(key => options[key]).map(key => [key, options[key]]))
+
   Object.assign(fn, {
     module,
     package: {artifact: moduleZip},
@@ -178,10 +195,10 @@ const packageFunction = async (slsFns, name, slsPath, outPath, moduleToDep, shar
       outPath,
       serverless
     ).concat(fn.layers || []))
-  }, options.vpc ? {vpc: options.vpc} : {})
+  }, sharedProperties)
 
   appInfo?.update('Packaging source ...')
-  await zip(source, moduleZip, exclude, appInfo)
+  await zip({[source]: ''}, moduleZip, exclude, appInfo)
   appInfo?.update(`Packaged ${name} ...`)
   appInfo?.remove()
 }
@@ -218,7 +235,7 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
   const moduleToDep = Object.fromEntries(await Promise.all(
     modules.map(async module => {
       const source = path.join(slsPath, '..', module)
-      return [module, await packageDependencyAsLayer(source, outPath, exclude, options, appInfo)]
+      return [module, await packageDependencyAsLayer([source], outPath, exclude, options, appInfo)]
     })
   ))
   
