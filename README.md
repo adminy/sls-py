@@ -1,4 +1,8 @@
 # sls-py
+
+![sls-py](https://github.com/adminy/sls-py/assets/22717869/08427ded-a060-4066-958e-98d0a8765726)
+
+
 ```yaml
 plugins:
   - sls-py
