@@ -16,6 +16,7 @@ provider:
 custom:
   pythonRequirements:
     # shared properties across all lambda functions
+    enableLambdaInsights: true
     vpc: ${self:provider.vpc}
     timeout: 900
     # pip arguments for dependency installation

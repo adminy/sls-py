@@ -12,6 +12,7 @@ provider:
     securityGroupIds: !Split [",", "sg-id1,sg-id2"]
 custom:
   pythonRequirements:
+    enableLambdaInsights: true
     vpc: ${self:provider.vpc}
     indexUrl: https://pypi.org/simple
     extraIndexUrl: https://pypi.org/simple
