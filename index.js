@@ -236,8 +236,7 @@ const beforePackage = async ({ serverless, log, progress, slsPath, options }) =>
     .filter(name => isFunction(slsFns[name], service))
 
   const appInfo = progress.get(`sls-py::${functions.length}::fns`)
-
-  const outPath = path.join(os.tmpdir(), 'slspy')
+  const outPath = path.join(os.tmpdir(), 'slspy', service.service)
   const inputExcludes = (options.exclude || []).map(excludePath => '!' + excludePath)
   const exclude = excludeDefaults.concat(inputExcludes)
   await mkdirp(outPath)
